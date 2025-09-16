@@ -1,81 +1,137 @@
 import socket
 import threading
 
-# Tabuleiro inicial
-tabuleiro = [" " for _ in range(9)]
-jogadores = []
-vez = 0  # 0 -> jogador 1 (X), 1 -> jogador 2 (O)
+# --- Estado Global do Servidor (Lobby) ---
+jogadores = [] # Lista de tuplas (conn, addr, simbolo, nickname)
+lock = threading.Lock()
 
-def imprimir_tabuleiro():
-    return f"""
- {tabuleiro[0]} | {tabuleiro[1]} | {tabuleiro[2]}
----+---+---
- {tabuleiro[3]} | {tabuleiro[4]} | {tabuleiro[5]}
----+---+---
- {tabuleiro[6]} | {tabuleiro[7]} | {tabuleiro[8]}
-"""
+def broadcast(jogadores_da_partida, mensagem, excecao=None):
+    for conn, _, _, _ in jogadores_da_partida:
+        if conn != excecao:
+            try:
+                conn.sendall(mensagem.encode('utf-8'))
+            except:
+                pass
 
-def verificar_vencedor():
-    combinacoes = [
-        (0,1,2), (3,4,5), (6,7,8),  # linhas
-        (0,3,6), (1,4,7), (2,5,8),  # colunas
-        (0,4,8), (2,4,6)            # diagonais
-    ]
-    for a,b,c in combinacoes:
-        if tabuleiro[a] == tabuleiro[b] == tabuleiro[c] != " ":
-            return True
-    return False
+def iniciar_jogo(jogadores_da_partida):
+    """Gerencia o fluxo de UMA partida."""
+    tabuleiro = [" " for _ in range(9)]
+    vez_do_jogador_idx = 0
+    
+    _, _, p1_simbolo, p1_nick = jogadores_da_partida[0]
+    _, _, p2_simbolo, p2_nick = jogadores_da_partida[1]
 
-def jogo(conn, jogador_id):
-    global vez
+    try:
+        broadcast(jogadores_da_partida, f"MSG|{p1_nick} vs {p2_nick}! O jogo vai começar.\nMSG|{p1_nick} ({p1_simbolo}) inicia.\n")
 
-    simbolo = "X" if jogador_id == 0 else "O"
-    conn.send(f"Você é o jogador {simbolo}!\n".encode())
+        while True:
+            conn_atual, _, simbolo_atual, nickname_atual = jogadores_da_partida[vez_do_jogador_idx]
+            
+            prompt_msg = f"TURN|Sua vez, {nickname_atual}. Escolha (0-8) ou 'sair':\n"
+            broadcast(jogadores_da_partida, f"BOARD|\n {tabuleiro[0]} | {tabuleiro[1]} | {tabuleiro[2]} \n---+---+---\n {tabuleiro[3]} | {tabuleiro[4]} | {tabuleiro[5]} \n---+---+---\n {tabuleiro[6]} | {tabuleiro[7]} | {tabuleiro[8]} \n")
+            conn_atual.send(prompt_msg.encode('utf-8'))
+            broadcast(jogadores_da_partida, f"WAIT|Aguardando a jogada de {nickname_atual} ({simbolo_atual})...\n", excecao=conn_atual)
 
-    while True:
-        if vez == jogador_id:
-            conn.send(f"Sua vez!\n{imprimir_tabuleiro()}Escolha (0-8): ".encode())
-            pos = conn.recv(1024).decode().strip()
+            data = conn_atual.recv(1024).decode('utf-8').strip()
+            if not data: raise ConnectionError(f"Jogador {nickname_atual} desconectou.")
 
-            if not pos.isdigit() or int(pos) not in range(9) or tabuleiro[int(pos)] != " ":
-                conn.send("Jogada inválida, tente de novo.\n".encode())
+            if data.lower() == 'sair':
+                outro_jogador_idx = 1 - vez_do_jogador_idx
+                conn_outro, _, _, _ = jogadores_da_partida[outro_jogador_idx]
+                
+                print(f"Jogador {nickname_atual} saiu.")
+                conn_outro.send(f"MSG|{nickname_atual} saiu do jogo. Aguardando um novo oponente...\n".encode('utf-8'))
+                conn_atual.send("END|Você saiu do jogo.\n".encode('utf-8'))
+                
+                with lock:
+                    jogadores.remove(jogadores_da_partida[vez_do_jogador_idx])
+                conn_atual.close()
+                return
+
+            if data.isdigit() and 0 <= int(data) <= 8 and tabuleiro[int(data)] == " ":
+                tabuleiro[int(data)] = simbolo_atual
+            else:
+                conn_atual.send("MSG|Jogada inválida. Tente novamente.\n".encode('utf-8'))
                 continue
 
-            pos = int(pos)
-            tabuleiro[pos] = simbolo
+            vencedor_simbolo = verificar_vencedor(tabuleiro)
+            if vencedor_simbolo:
+                vencedor_nick = p1_nick if vencedor_simbolo == p1_simbolo else p2_nick
+                final_board = f"BOARD|\n {tabuleiro[0]} | {tabuleiro[1]} | {tabuleiro[2]} \n---+---+---\n {tabuleiro[3]} | {tabuleiro[4]} | {tabuleiro[5]} \n---+---+---\n {tabuleiro[6]} | {tabuleiro[7]} | {tabuleiro[8]} \n"
+                broadcast(jogadores_da_partida, final_board)
+                if vencedor_simbolo == "EMPATE": broadcast(jogadores_da_partida, "END|⚖️  Deu velha! O jogo empatou.\n")
+                else: broadcast(jogadores_da_partida, f"END|🏆 {vencedor_nick} ({vencedor_simbolo}) venceu!\n")
+                
+                with lock:
+                    for jogador in jogadores_da_partida:
+                        jogadores.remove(jogador)
+                        try: jogador[0].close()
+                        except: pass
+                return
+            else:
+                vez_do_jogador_idx = 1 - vez_do_jogador_idx
+    
+    except (ConnectionError, ConnectionResetError) as e:
+        print(f"Partida encerrada por desconexão: {e}")
+        with lock:
+            for jogador in jogadores_da_partida:
+                if jogador in jogadores:
+                    jogadores.remove(jogador)
+                try: jogador[0].close()
+                except: pass
 
-            # Atualizar todos os jogadores
-            for c in jogadores:
-                c.send(f"\n{imprimir_tabuleiro()}".encode())
+def verificar_vencedor(tabuleiro):
+    # (código sem alterações)
+    combinacoes_vitoria = [
+        (0, 1, 2), (3, 4, 5), (6, 7, 8),
+        (0, 3, 6), (1, 4, 7), (2, 5, 8),
+        (0, 4, 8), (2, 4, 6)
+    ]
+    for a, b, c in combinacoes_vitoria:
+        if tabuleiro[a] == tabuleiro[b] == tabuleiro[c] and tabuleiro[a] != " ":
+            return tabuleiro[a]
+    if " " not in tabuleiro:
+        return "EMPATE"
+    return None
 
-            if verificar_vencedor():
-                for c in jogadores:
-                    c.send(f"Jogador {simbolo} venceu!\n".encode())
-                break
+def main():
+    """Função principal que atua como LOBBY."""
+    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    server_socket.bind(("0.0.0.0", 5000))
+    server_socket.listen()
+    print("✔ Servidor/Lobby iniciado. Aguardando jogadores...")
 
-            if " " not in tabuleiro:
-                for c in jogadores:
-                    c.send("Empate!\n".encode())
-                break
+    while True:
+        conn, addr = server_socket.accept()
+        with lock:
+            if len(jogadores) < 2:
+                try:
+                    nickname = conn.recv(1024).decode('utf-8').strip()
+                    if not nickname:
+                        nickname = f"Jogador_{addr[1]}"
+                except:
+                    conn.close()
+                    continue
 
-            vez = (vez + 1) % 2
-        else:
-            conn.send("Aguarde sua vez...\n".encode())
+                if len(jogadores) == 0:
+                    simbolo = 'X'
+                else:
+                    simbolo_existente = jogadores[0][2]
+                    simbolo = 'O' if simbolo_existente == 'X' else 'X'
+                
+                jogador_novo = (conn, addr, simbolo, nickname)
+                jogadores.append(jogador_novo)
+                print(f"{nickname} ({simbolo}) entrou no lobby. Jogadores online: {len(jogadores)}")
+                conn.send(f"MSG|Bem-vindo, {nickname}! Você é o jogador {simbolo}. Aguardando oponente...\n".encode('utf-8'))
 
-    conn.close()
+                if len(jogadores) == 2:
+                    print("Lobby cheio! Iniciando uma nova partida...")
+                    partida_atual = tuple(jogadores)
+                    threading.Thread(target=iniciar_jogo, args=(partida_atual,)).start()
+            else:
+                conn.send("MSG|Servidor cheio, tente mais tarde.\n".encode('utf-8'))
+                conn.close()
 
-# --- Servidor principal ---
-server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-server_socket.bind(("0.0.0.0", 5000))
-server_socket.listen(2)
-
-print("Aguardando 2 jogadores...")
-
-while len(jogadores) < 2:
-    conn, addr = server_socket.accept()
-    jogadores.append(conn)
-    print(f"Jogador conectado: {addr}")
-
-# Criar threads para os dois jogadores
-for i, conn in enumerate(jogadores):
-    threading.Thread(target=jogo, args=(conn,i)).start()
+if __name__ == "__main__":
+    main()
