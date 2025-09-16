@@ -7,7 +7,7 @@ nickname = input("Escolha seu apelido: ")
 
 # --- Configurações do Cliente ---
 # O cliente PRECISA saber o IP do servidor para se conectar
-SERVER_IP = '127.0.0.1' # Mude para o IP da máquina do servidor se for diferente
+SERVER_IP = '192.168.0.42' # Mude para o IP da máquina do servidor se for diferente
 SERVER_PORT = 55555
 
 # --- Inicialização do Cliente ---
