@@ -3,7 +3,6 @@ import threading
 import os
 
 def receive_messages(client_socket):
-    # (código sem alterações da última versão)
     buffer = ""
     while True:
         try:
@@ -43,7 +42,6 @@ def receive_messages(client_socket):
         pass
 
 def start_client():
-    """Inicia o cliente."""
     SERVER_IP = input("👨‍💻 Digite o endereço IP do servidor: ")
     SERVER_PORT = 5000
 
@@ -51,8 +49,6 @@ def start_client():
     try:
         client_socket.connect((SERVER_IP, SERVER_PORT))
         
-        # --- MUDANÇA IMPORTANTE AQUI ---
-        # Pede o nome do usuário e envia para o servidor
         nickname = input("🗣️ Digite seu nome para o jogo: ")
         client_socket.send(nickname.encode('utf-8'))
         print("✔ Conectado e nome enviado! Aguardando o jogo...")
@@ -69,7 +65,7 @@ def start_client():
     receive_thread.join()
     
     input()
-    os._exit(0) # Força o encerramento total
+    os._exit(0)
 
 if __name__ == "__main__":
     start_client()

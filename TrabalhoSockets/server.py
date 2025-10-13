@@ -98,7 +98,7 @@ def main():
     """Função principal que atua como LOBBY."""
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    server_socket.bind(("0.0.0.0", 5000))
+    server_socket.bind(("172.20.10.4", 5000))
     server_socket.listen()
     print("✔ Servidor/Lobby iniciado. Aguardando jogadores...")
 
