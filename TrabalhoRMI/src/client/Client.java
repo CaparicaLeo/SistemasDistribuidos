@@ -10,8 +10,8 @@ import java.util.Scanner;
 public class Client {
     public static void main(String[] args){
         try{
-            // Conecta-se diretamente ao serviço rodando em 'localhost'
-            GerenciadorDeTarefas gerenciador = (GerenciadorDeTarefas) Naming.lookup("rmi://localhost/GerenciadorTarefasService");
+            String ipServidor = "192.168.56.1";
+            GerenciadorDeTarefas gerenciador = (GerenciadorDeTarefas) Naming.lookup("rmi"+ ipServidor + "/GerenciadorTarefasService");
             Scanner scanner = new Scanner(System.in);
 
             System.out.print("Digite seu nome de usuário para começar: ");
