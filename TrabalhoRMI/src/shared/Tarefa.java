@@ -7,10 +7,12 @@ public class Tarefa implements Serializable {
 
     private int id;
     private String descricao;
+    private String usuario;
 
-    public Tarefa(int id, String descricao) {
+    public Tarefa(int id, String descricao, String usuario) {
         this.id = id;
         this.descricao = descricao;
+        this.usuario = usuario;
     }
 
     public int getId(){
@@ -19,9 +21,12 @@ public class Tarefa implements Serializable {
     public String getDescricao(){
         return this.descricao;
     }
+    public String getUsuario(){
+        return this.usuario;
+    }
 
     @Override
-    public String toString(){
-        return "Tarefa [ID: "+  id + ", Descrição: "+ descricao + "]";
+    public String toString() {
+        return "ID: " + id + " | Usuário: " + usuario + " | Tarefa: " + descricao;
     }
 }

@@ -19,27 +19,48 @@ public class GerenciadorDeTarefasImpl extends UnicastRemoteObject implements Ger
     }
 
     @Override
-    public void adicionarTarefa(String descricao) throws RemoteException {
+    public void adicionarTarefa(String descricao, String nomeUsuario) throws RemoteException {
         int id = proximoId.getAndIncrement();
-        Tarefa novaTarefa = new Tarefa(id, descricao);
+        Tarefa novaTarefa = new Tarefa(id, descricao, nomeUsuario);
         listaDeTarefas.add(novaTarefa);
-        System.out.println("Servidor: Tarefa adicionada -> " + novaTarefa);
+        System.out.println("Servidor: Tarefa adicionada por " + nomeUsuario + " -> " + novaTarefa);
     }
 
     @Override
-    public List<Tarefa> listarTarefa() throws RemoteException {
-        System.out.println("Servidor: Requisição para listar tarefas recebida.");
+    public List<Tarefa> listarTarefa(String nomeUsuario) throws RemoteException {
+        System.out.println("Servidor: Requisição para listar tarefas recebida. Usuario: "+ nomeUsuario);
         return new ArrayList<>(listaDeTarefas);
     }
 
     @Override
-    public boolean removerTarefa(int id) throws RemoteException {
-        boolean removido = listaDeTarefas.removeIf(tarefa -> tarefa.getId() == id);
-        if (removido) {
-            System.out.println("Servidor: Tarefa com ID " + id + " removida.");
-        } else {
-            System.out.println("Servidor: Tentativa de remover tarefa com ID " + id + " (não encontrada).");
+    public boolean removerTarefa(int id, String nomeUsuario) throws RemoteException {
+        synchronized (listaDeTarefas) {
+            Tarefa tarefaParaRemover = null;
+            boolean idEncontrado = false;
+
+            for (Tarefa tarefa : listaDeTarefas) {
+                if (tarefa.getId() == id) {
+                    idEncontrado = true;
+
+                    if (tarefa.getUsuario().equals(nomeUsuario)) {
+                        tarefaParaRemover = tarefa;
+                    }
+                    break;
+                }
+            }
+
+            if (tarefaParaRemover != null) {
+                listaDeTarefas.remove(tarefaParaRemover);
+                System.out.println("Servidor: Tarefa com ID " + id + " removida por " + nomeUsuario + " (proprietário verificado).");
+                return true;
+            } else {
+                if (idEncontrado) {
+                    System.out.println("Servidor: Tentativa de remover tarefa com ID " + id + " por " + nomeUsuario + ". Falha: Usuário não é o proprietário.");
+                } else {
+                    System.out.println("Servidor: Tentativa de remover tarefa com ID " + id + " por " + nomeUsuario + ". Falha: Tarefa não encontrada.");
+                }
+                return false;
+            }
         }
-        return removido;
     }
 }

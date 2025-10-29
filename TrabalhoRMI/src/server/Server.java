@@ -9,7 +9,7 @@ public class Server {
             LocateRegistry.createRegistry(1099);
             GerenciadorDeTarefasImpl gerenciador = new GerenciadorDeTarefasImpl();
             Naming.rebind("GerenciadorTarefasService",gerenciador);
-            System.out.print(">>> Servidor do Gerenciador de Tarefas está pronto. <<<");
+            System.out.println(">>> Servidor do Gerenciador de Tarefas está pronto. <<<");
 
         }catch (Exception e){
             System.err.println("Erro no servidor: " + e.toString());
