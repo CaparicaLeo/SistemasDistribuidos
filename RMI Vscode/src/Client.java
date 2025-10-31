@@ -1,8 +1,3 @@
-package client;
-
-import shared.GerenciadorDeTarefas;
-import shared.Tarefa;
-
 import java.rmi.Naming;
 import java.util.List;
 import java.util.Scanner;
@@ -10,8 +5,8 @@ import java.util.Scanner;
 public class Client {
     public static void main(String[] args){
         try{
-            String ipServidor = "10.209.247.201";
-            GerenciadorDeTarefas gerenciador = (GerenciadorDeTarefas) Naming.lookup("rmi"+ ipServidor + "/GerenciadorTarefasService");
+            String ipServidor = "172.20.10.4";
+            GerenciadorDeTarefas gerenciador = (GerenciadorDeTarefas) Naming.lookup("rmi://"+ ipServidor + "/GerenciadorTarefasService");
             Scanner scanner = new Scanner(System.in);
 
             System.out.print("Digite seu nome de usuário para começar: ");
